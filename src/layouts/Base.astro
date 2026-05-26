@@ -18,9 +18,9 @@ const fullTitle = title ? `${title} — ${siteTitle}` : siteTitle;
 const siteDescription = description || siteTagline;
 
 const navLinks = [
-	{ label: "Work", url: "/work" },
-	{ label: "About", url: "/#about" },
-	{ label: "Contact", url: "/#contact" },
+	{ label: "Work", url: "/work", num: "01" },
+	{ label: "About", url: "/#about", num: "02" },
+	{ label: "Contact", url: "/#contact", num: "03" },
 ];
 ---
 
@@ -38,7 +38,7 @@ const navLinks = [
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
-			href="https://fonts.googleapis.com/css2?family=Allura&family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Syne:wght@400..800&display=swap"
+			href="https://fonts.googleapis.com/css2?family=Anton&family=Allura&family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Syne:wght@400..800&family=Space+Mono:wght@700&display=swap"
 			rel="stylesheet"
 		/>
 		<link
@@ -47,20 +47,47 @@ const navLinks = [
 			title={`${siteTitle} RSS Feed`}
 			href="/rss.xml"
 		/>
-
 	</head>
 	<body>
+		<!-- Page Loader -->
+		<div class="page-loader" id="pageLoader">
+			<div class="loader-grid" id="gridLines"></div>
+			<div class="loader-content">
+				<div class="loader-number" id="loaderNumber">0%</div>
+			</div>
+		</div>
+
+		<!-- Top Bar -->
 		<header class="site-header">
 			<nav class="nav">
 				<a href="/" class="site-title">{siteTitle}</a>
-				<div class="nav-links">
-					{navLinks.map((item) => (
-						<a href={item.url}>{item.label}</a>
-					))}
-					<a href="/keystatic" class="nav-admin">Admin</a>
-				</div>
+				<button class="menu-btn" id="menuBtn" aria-label="Open menu">
+					<span class="menu-btn-label" id="menuLabel">Menu</span>
+					<span class="menu-btn-icon" id="menuIcon">
+						<span></span>
+						<span></span>
+					</span>
+				</button>
 			</nav>
 		</header>
+
+		<!-- Fullscreen Menu Overlay -->
+		<div class="menu-overlay" id="menuOverlay">
+			<div class="menu-overlay-inner">
+				<nav class="menu-nav">
+					{navLinks.map((item) => (
+						<a href={item.url} class="menu-nav-item" data-num={item.num}>
+							<span class="menu-nav-num">{item.num}</span>
+							<span class="menu-nav-label">{item.label}</span>
+						</a>
+					))}
+				</nav>
+				<div class="menu-footer">
+					<span class="menu-tagline">{siteTagline}</span>
+					<a href="/keystatic" class="menu-admin">Admin</a>
+				</div>
+			</div>
+		</div>
 
 		<main>
 			<slot />
@@ -84,14 +111,121 @@ const navLinks = [
 			</div>
 		</footer>
 
+		<script is:inline>
+			document.addEventListener('DOMContentLoaded', () => {
+				// ── Page Loader ──
+				const loader = document.getElementById('pageLoader');
+				const loaderNumber = document.getElementById('loaderNumber');
+				const gridLines = document.getElementById('gridLines');
+				const gridCount = 28;
+				const lines = [];
 
+				if (gridLines) {
+					const W = window.innerWidth;
+					const center = W / 2;
+
+					for (let i = 0; i < gridCount; i++) {
+						const line = document.createElement('div');
+						line.className = 'grid-line';
+						const x = (i / (gridCount - 1)) * W;
+						line.style.left = x + 'px';
+						gridLines.appendChild(line);
+						lines.push({ el: line, x });
+					}
+
+					let progress = 0;
+
+					const interval = setInterval(() => {
+						progress += Math.random() * 5 + 2;
+						if (progress > 100) progress = 100;
+
+						if (loaderNumber) {
+							loaderNumber.textContent = Math.floor(progress) + '%';
+						}
+
+						const scaleY = 0.05 + (progress / 100) * 0.95;
+						lines.forEach(({ el }) => {
+							el.style.transition = 'none';
+							el.style.transform = `scaleY(${scaleY})`;
+						});
+
+						if (progress >= 100) {
+							clearInterval(interval);
+
+							setTimeout(() => {
+								if (loaderNumber) {
+									loaderNumber.style.transform = 'translateY(120px)';
+									loaderNumber.style.opacity = '0';
+								}
+							}, 200);
+
+							setTimeout(() => {
+								lines.forEach(({ el, x }) => {
+									const dist = x - center;
+									el.style.transition = 'transform 0.7s cubic-bezier(0.76,0,0.24,1)';
+									el.style.transform = `translateX(${-dist}px) scaleY(1)`;
+								});
+							}, 500);
+
+							setTimeout(() => {
+								lines.forEach(({ el }) => {
+									el.style.display = 'none';
+								});
+
+								loader.style.background = 'transparent';
+
+								const left = document.createElement('div');
+								const right = document.createElement('div');
+								const shared = `
+									position: absolute; top: 0; height: 100%;
+									width: 50%; background: var(--color-bg);
+									transition: transform 0.7s cubic-bezier(0.76,0,0.24,1);
+								`;
+								left.style.cssText = shared + 'left: 0;';
+								right.style.cssText = shared + 'right: 0;';
+								loader.appendChild(left);
+								loader.appendChild(right);
+
+								left.getBoundingClientRect();
+								left.style.transform = 'translateX(-100%)';
+								right.style.transform = 'translateX(100%)';
+
+								setTimeout(() => {
+									loader?.classList.add('loaded');
+								}, 700);
+							}, 1300);
+						}
+					}, 110);
+				}
+
+				// ── Menu Toggle ──
+				const menuBtn = document.getElementById('menuBtn');
+				const menuOverlay = document.getElementById('menuOverlay');
+				const menuLabel = document.getElementById('menuLabel');
+
+				let menuOpen = false;
+
+				menuBtn?.addEventListener('click', () => {
+					menuOpen = !menuOpen;
+					menuOverlay?.classList.toggle('is-open', menuOpen);
+					menuBtn?.classList.toggle('is-open', menuOpen);
+					if (menuLabel) menuLabel.textContent = menuOpen ? 'Close' : 'Menu';
+					document.body.style.overflow = menuOpen ? 'hidden' : '';
+				});
+
+				document.querySelectorAll('.menu-nav-item').forEach(link => {
+					link.addEventListener('click', () => {
+						menuOpen = false;
+						menuOverlay?.classList.remove('is-open');
+						menuBtn?.classList.remove('is-open');
+						if (menuLabel) menuLabel.textContent = 'Menu';
+						document.body.style.overflow = '';
+					});
+				});
+			});
+		</script>
 
 		<style is:global>
-			/*
-			 * Establish layer order: "base" has lower priority than unlayered
-			 * styles, so theme.css overrides always win regardless of source
-			 * order in the bundled CSS.
-			 */
 			@layer base;
 
 			@layer base {
@@ -104,7 +238,6 @@ const navLinks = [
 				}
 
 				:root {
-					/* Colors — Dark mode only */
 					--color-bg: #0a0a0a;
 					--color-text: #f5f5f5;
 					--color-muted: #a1a1aa;
@@ -113,7 +246,6 @@ const navLinks = [
 					--color-accent: #a78bfa;
 					--color-accent-muted: #7c3aed;
 
-					/* Typography */
 					--font-sans: system-ui, -apple-system, sans-serif;
 					--font-mono: ui-monospace, monospace;
 
@@ -125,7 +257,6 @@ const navLinks = [
 					--font-size-3xl: 2.75rem;
 					--font-size-4xl: 3.5rem;
 
-					/* Spacing */
 					--spacing-xs: 0.25rem;
 					--spacing-sm: 0.5rem;
 					--spacing-md: 1rem;
@@ -135,12 +266,10 @@ const navLinks = [
 					--spacing-3xl: 4rem;
 					--spacing-4xl: 6rem;
 
-					/* Layout */
 					--max-width: 720px;
 					--wide-width: 1200px;
 					--radius: 4px;
 
-					/* Transitions */
 					--transition-fast: 150ms ease;
 					--transition-base: 200ms ease;
 					--transition-slow: 300ms ease;
@@ -165,9 +294,7 @@ const navLinks = [
 					position: relative;
 				}
 
-				a {
-					color: currentColor;
-				}
+				a { color: currentColor; }
 
 				img {
 					max-width: 100%;
@@ -175,43 +302,79 @@ const navLinks = [
 					display: block;
 				}
 
-				h1,
-				h2,
-				h3,
-				h4 {
+				h1, h2, h3, h4 {
 					font-family: var(--font-serif);
 					font-weight: 500;
 					line-height: 1.2;
 				}
 
-				h1 {
-					font-size: var(--font-size-4xl);
-				}
-
-				h2 {
-					font-size: var(--font-size-2xl);
-				}
-
-				h3 {
-					font-size: var(--font-size-xl);
-				}
+				h1 { font-size: var(--font-size-4xl); }
+				h2 { font-size: var(--font-size-2xl); }
+				h3 { font-size: var(--font-size-xl); }
 			}
 		</style>
 
-		<style>
+		<style is:global>
+			/* ── Loader ── */
+			.page-loader {
+				position: fixed;
+				top: 0;
+				left: 0;
+				width: 100vw;
+				height: 100vh;
+				background: var(--color-bg);
+				z-index: 9999;
+			}
+
+			.page-loader.loaded {
+				display: none;
+			}
+
+			.loader-grid {
+				position: absolute;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+			}
+
+			.grid-line {
+				position: absolute;
+				top: 0;
+				width: 1px;
+				height: 100%;
+				background: rgba(255, 255, 255, 0.18);
+				transform: scaleY(0.05);
+				transform-origin: center;
+			}
+
+			.loader-content {
+				position: fixed;
+				bottom: var(--spacing-2xl);
+				right: var(--spacing-2xl);
+				z-index: 10;
+			}
+
+			.loader-number {
+				font-family: 'Anton', sans-serif;
+				font-size: clamp(3rem, 10vw, 8rem);
+				font-weight: 700;
+				color: var(--color-text);
+				letter-spacing: 0.05em;
+				line-height: 1;
+				transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+			}
+
+			/* ── Header ── */
 			.site-header {
 				position: fixed;
 				top: 0;
 				left: 0;
 				right: 0;
 				width: 100%;
-				max-width: 100vw;
-				margin: 0 auto;
-				padding: var(--spacing-xl) var(--spacing-lg);
-				background: transparent;
-				border-bottom: none;
+				padding: var(--spacing-xl) var(--spacing-xl);
 				z-index: 1000;
-				box-sizing: border-box;
+				mix-blend-mode: difference;
 			}
 
 			.nav {
@@ -222,47 +385,161 @@ const navLinks = [
 
 			.site-title {
 				font-family: "Syne", sans-serif;
-				font-size: var(--font-size-xl);
+				font-size: var(--font-size-sm);
 				font-weight: 800;
 				text-decoration: none;
 				text-transform: uppercase;
-				letter-spacing: -0.03em;
+				letter-spacing: 0.08em;
 				color: var(--color-text);
 			}
 
-			.nav-links {
+			/* ── Menu Button ── */
+			.menu-btn {
 				display: flex;
 				align-items: center;
-				gap: var(--spacing-xl);
+				gap: 10px;
+				background: none;
+				border: none;
+				cursor: pointer;
+				color: var(--color-text);
+				padding: 0;
 			}
 
-			.nav-links a {
-				text-decoration: none;
+			.menu-btn-label {
 				font-family: var(--font-mono);
-				font-size: 0.75rem;
+				font-size: 0.7rem;
 				text-transform: uppercase;
-				letter-spacing: 0.05em;
-				color: var(--color-muted);
+				letter-spacing: 0.1em;
+				color: var(--color-text);
+			}
+
+			.menu-btn-icon {
+				display: flex;
+				flex-direction: column;
+				gap: 5px;
+				width: 22px;
+			}
+
+			.menu-btn-icon span {
+				display: block;
+				width: 100%;
+				height: 1px;
+				background: var(--color-text);
+				transition: transform 0.4s cubic-bezier(0.76,0,0.24,1), opacity 0.3s ease;
+				transform-origin: center;
+			}
+
+			.menu-btn.is-open .menu-btn-icon span:first-child {
+				transform: translateY(3px) rotate(45deg);
+			}
+
+			.menu-btn.is-open .menu-btn-icon span:last-child {
+				transform: translateY(-3px) rotate(-45deg);
+			}
+
+			/* ── Menu Overlay ── */
+			.menu-overlay {
+				position: fixed;
+				inset: 0;
+				background: var(--color-bg);
+				z-index: 999;
+				display: flex;
+				flex-direction: column;
+				padding: var(--spacing-4xl) var(--spacing-xl) var(--spacing-2xl);
+				clip-path: inset(0 0 100% 0);
+				transition: clip-path 0.7s cubic-bezier(0.76,0,0.24,1);
+			}
+
+			.menu-overlay.is-open {
+				clip-path: inset(0 0 0% 0);
+			}
+
+			.menu-overlay-inner {
+				display: flex;
+				flex-direction: column;
+				justify-content: space-between;
+				height: 100%;
+			}
+
+			.menu-nav {
+				display: flex;
+				flex-direction: column;
+				margin-top: auto;
+				padding-top: var(--spacing-2xl);
+			}
+
+			.menu-nav-item {
+				display: flex;
+				align-items: baseline;
+				gap: var(--spacing-lg);
+				text-decoration: none;
+				color: var(--color-text);
+				padding: var(--spacing-lg) 0;
+				border-top: 1px solid var(--color-border);
 				transition: color var(--transition-fast);
 			}
 
-			.nav-links a:hover {
-				color: var(--color-text);
+			.menu-nav-item:last-child {
+				border-bottom: 1px solid var(--color-border);
 			}
 
-			.nav-links a:empty {
-				display: none;
-			}
-
-			.nav-admin {
+			.menu-nav-item:hover {
 				color: var(--color-muted);
-				opacity: 0.6;
 			}
 
-			.nav-admin:hover {
+			.menu-nav-num {
+				font-family: var(--font-mono);
+				font-size: 0.7rem;
+				color: var(--color-muted);
+				letter-spacing: 0.05em;
+				flex-shrink: 0;
+			}
+
+			.menu-nav-label {
+				font-family: "Syne", sans-serif;
+				font-size: clamp(2.5rem, 8vw, 7rem);
+				font-weight: 800;
+				text-transform: uppercase;
+				letter-spacing: -0.04em;
+				line-height: 1;
+				transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+			}
+
+			.menu-nav-item:hover .menu-nav-label {
+				transform: translateX(1rem);
+			}
+
+			.menu-footer {
+				display: flex;
+				justify-content: space-between;
+				align-items: flex-end;
+				padding-top: var(--spacing-2xl);
+			}
+
+			.menu-tagline {
+				font-family: var(--font-mono);
+				font-size: 0.7rem;
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--color-muted);
+			}
+
+			.menu-admin {
+				font-family: var(--font-mono);
+				font-size: 0.7rem;
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: var(--color-muted);
+				text-decoration: none;
+				opacity: 0.5;
+				transition: opacity var(--transition-fast);
+			}
+
+			.menu-admin:hover {
 				opacity: 1;
 			}
 
+			/* ── Main ── */
 			main {
 				min-height: 100vh;
 				overflow-x: clip;
@@ -272,6 +549,7 @@ const navLinks = [
 				background: var(--color-bg);
 			}
 
+			/* ── Footer ── */
 			.site-footer {
 				width: 100%;
 				max-width: 100%;
@@ -332,15 +610,6 @@ const navLinks = [
 				gap: var(--spacing-xs);
 			}
 
-			.footer-logo {
-				font-family: "Syne", sans-serif;
-				font-size: var(--font-size-xl);
-				font-weight: 800;
-				text-transform: uppercase;
-				letter-spacing: -0.03em;
-				color: var(--color-text);
-			}
-
 			.footer-tagline {
 				font-family: var(--font-mono);
 				text-transform: uppercase;
@@ -354,38 +623,6 @@ const navLinks = [
 				flex-direction: column;
 				align-items: flex-end;
 				gap: var(--spacing-lg);
-			}
-
-			.theme-switcher {
-				display: flex;
-				border: 1px solid var(--color-border);
-				padding: 2px;
-				background: transparent;
-				border-radius: 0;
-			}
-
-			.theme-btn {
-				background: transparent;
-				border: none;
-				color: var(--color-muted);
-				font-family: var(--font-mono);
-				font-size: 0.75rem;
-				text-transform: uppercase;
-				letter-spacing: 0.05em;
-				padding: 4px 10px;
-				border-radius: 0;
-				cursor: pointer;
-				transition: all var(--transition-fast);
-			}
-
-			.theme-btn:hover {
-				color: var(--color-text);
-			}
-
-			.theme-btn.active {
-				background: var(--color-text);
-				color: var(--color-bg);
-				font-weight: bold;
 			}
 
 			.footer-powered {
@@ -411,38 +648,13 @@ const navLinks = [
 					padding: var(--spacing-md) var(--spacing-md);
 				}
 
-				.nav {
-					flex-direction: column;
-					gap: var(--spacing-md);
-					align-items: center;
-				}
-
-				.site-title {
-					font-size: var(--font-size-lg);
-				}
-
-				.nav-links {
-					flex-wrap: wrap;
-					justify-content: center;
+				.menu-nav-label {
+					font-size: clamp(2rem, 12vw, 4rem);
 				}
 
 				.footer-bottom {
 					flex-direction: column;
 					gap: var(--spacing-xl);
-				}
-
-				.footer-right {
-					align-items: flex-start;
-				}
-
-				.nav-links {
-					flex-wrap: wrap;
-					justify-content: center;
-					gap: var(--spacing-md);
-				}
-
-				.nav-links a {
-					font-size: 0.7rem;
 				}
 
 				.footer-content {

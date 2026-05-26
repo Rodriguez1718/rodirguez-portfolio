@@ -63,47 +63,17 @@ const titleWords = title.split(" ");
 
 <Base>
 	<section class="hero">
-		<!-- Dynamic Topographic Background -->
-		<div class="topo-bg">
-			<svg class="topo-svg" xmlns="http://www.w3.org/2000/svg">
-				<filter id="topography" x="0" y="0" width="100%" height="100%">
-					<!-- Generate base noise -->
-					<feTurbulence
-						type="fractalNoise"
-						baseFrequency="0.003"
-						numOctaves="3"
-						result="noise"></feTurbulence>
-					<!-- Convert soft noise into sharp bands -->
-					<feComponentTransfer in="noise" result="bands">
-						<feFuncA
-							type="discrete"
-							tableValues="0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1"
-						></feFuncA>
-					</feComponentTransfer>
-					<!-- Dilate the bands to create a border -->
-					<feMorphology
-						operator="dilate"
-						radius="1.5"
-						in="bands"
-						result="dilated"></feMorphology>
-					<!-- Subtract original bands from dilated bands to get contour lines -->
-					<feComposite
-						operator="out"
-						in="dilated"
-						in2="bands"
-						result="lines"></feComposite>
-				</filter>
-				<!-- Apply the filter to a full-size rect -->
-				<rect
-					width="100%"
-					height="100%"
-					filter="url(#topography)"
-					fill="currentColor"></rect>
-			</svg>
-		</div>
-
+		<!-- WebGL Wave Background -->
+		<canvas id="wave-canvas" class="wave-canvas"></canvas>
+		
 		<div class="hero-content">
 			<div class="hero-inner">
+				<!-- Top Border with Text -->
+				<div class="hero-top-border">
+					<span class="border-text-left">4+ YEARS EXPERIENCE</span>
+					<span class="border-text-right">WEB DEVELOPER</span>
+				</div>
+				
 				<!-- Large Title -->
 				<div class="title-container">
 					{
@@ -506,6 +476,30 @@ const titleWords = title.split(" ");
 		max-width: 100vw;
 	}
 
+	.hero-top-border {
+		position: relative;
+		width: 100%;
+		height: 1px;
+		background: var(--color-text);
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+
+	}
+
+	.border-text-left,
+	.border-text-right {
+		font-family: var(--font-mono);
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--color-text);
+		background: var(--color-bg);
+		padding: 0 var(--spacing-sm);
+		position: relative;
+		top: -0.5em;
+	}
+
 	.zoom-letter {
 		color: #ffffff !important;
 		background: none !important;
@@ -513,6 +507,9 @@ const titleWords = title.split(" ");
 		background-clip: unset !important;
 		display: inline-block;
 		position: relative;
+		font-family: 'Playfair Display', 'Georgia', serif !important;
+		font-style: italic;
+		font-weight: 700;
 	}
 
 	.normal-letter {
@@ -524,21 +521,14 @@ const titleWords = title.split(" ");
 		position: relative;
 	}
 
-	.topo-bg {
+	.wave-canvas {
 		position: absolute;
 		top: 0;
 		left: 0;
-		right: 0;
-		bottom: 0;
-		z-index: 0;
-		opacity: 0.1;
-		pointer-events: none;
-	}
-
-	.topo-svg {
 		width: 100%;
 		height: 100%;
-		color: var(--color-text);
+		z-index: 0;
+		pointer-events: none;
 	}
 
 	.hero-content {
@@ -611,8 +601,8 @@ const titleWords = title.split(" ");
 	.hero-tagline {
 		font-size: clamp(1.75rem, 3vw, 2.25rem);
 		color: #d1d5db;
-		font-family: "Allura", cursive;
-		font-style: normal;
+		font-family: "Playfair Display", "Georgia", serif;
+		font-style: italic;
 		font-weight: 400;
 		letter-spacing: 0.03em;
 		line-height: 1.4;
@@ -1373,7 +1363,7 @@ const titleWords = title.split(" ");
 		font-size: clamp(8rem, 20vw, 18rem);
 		font-weight: 800;
 		line-height: 1;
-		color: var(--color-border, rgba(0, 0, 0, 0.08));
+		color: rgba(255, 255, 255, 0.1);
 		user-select: none;
 	}
 
@@ -1650,6 +1640,158 @@ const titleWords = title.split(" ");
 
 	gsap.registerPlugin(ScrollTrigger, MotionPathPlugin);
 
+	// WebGL Wave Background
+	const initWaveBackground = () => {
+		const canvas = document.getElementById('wave-canvas') as HTMLCanvasElement;
+		if (!canvas) return;
+
+		// Import Three.js dynamically
+		import('three').then((THREE) => {
+			const scene = new THREE.Scene();
+			
+			// Use orthographic camera for full coverage
+			const aspect = window.innerWidth / window.innerHeight;
+			const frustumSize = 20;
+			const camera = new THREE.OrthographicCamera(
+				frustumSize * aspect / -2,
+				frustumSize * aspect / 2,
+				frustumSize / 2,
+				frustumSize / -2,
+				0.1,
+				1000
+			);
+			
+			const renderer = new THREE.WebGLRenderer({ 
+				canvas, 
+				alpha: true,
+				antialias: true 
+			});
+			
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+			
+			// Create plane geometry that matches viewport aspect ratio
+			const planeWidth = frustumSize * aspect;
+			const planeHeight = frustumSize;
+			const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight, 100, 100);
+			
+			// Custom shader material for topographic effect
+			const material = new THREE.ShaderMaterial({
+				uniforms: {
+					uTime: { value: 0 },
+					uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+					uColorStart: { value: new THREE.Color(0x666666) },
+					uColorEnd: { value: new THREE.Color(0x999999) },
+				},
+				vertexShader: `
+					uniform float uTime;
+					uniform vec2 uMouse;
+					varying vec2 vUv;
+					varying float vElevation;
+					
+					void main() {
+						vUv = uv;
+						
+						vec3 pos = position;
+						
+						// Distance from mouse position
+						vec2 mousePos = vec2(uMouse.x * 20.0 - 10.0, uMouse.y * 20.0 - 10.0);
+						float distToMouse = length(pos.xy - mousePos);
+						float mouseInfluence = smoothstep(8.0, 0.0, distToMouse) * 1.5;
+						
+						// Create wave patterns
+						float wave1 = sin(pos.x * 0.5 + uTime * 0.5) * 0.5;
+						float wave2 = sin(pos.y * 0.3 + uTime * 0.3) * 0.5;
+						float wave3 = sin((pos.x + pos.y) * 0.4 + uTime * 0.4) * 0.3;
+						
+						pos.z = wave1 + wave2 + wave3 + mouseInfluence;
+						vElevation = pos.z;
+						
+						gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+					}
+				`,
+				fragmentShader: `
+					uniform vec3 uColorStart;
+					uniform vec3 uColorEnd;
+					uniform float uTime;
+					varying vec2 vUv;
+					varying float vElevation;
+					
+					void main() {
+						// Create topographic contour lines
+						float elevation = vElevation * 2.0;
+						float contour = fract(elevation * 3.0); // Number of contour lines
+						
+						// Make lines sharp
+						float lineWidth = 0.15;
+						float line = smoothstep(0.0, lineWidth, contour) * smoothstep(1.0, 1.0 - lineWidth, contour);
+						
+						// Color gradient based on elevation
+						vec3 color = mix(uColorStart, uColorEnd, vElevation * 0.5 + 0.5);
+						
+						// Mix background with contour lines
+						float alpha = mix(0.05, 0.25, 1.0 - line);
+						
+						gl_FragColor = vec4(color, alpha);
+					}
+				`,
+				transparent: true,
+				side: THREE.DoubleSide,
+			});
+			
+			const mesh = new THREE.Mesh(geometry, material);
+			scene.add(mesh);
+			
+			// Position camera directly above looking down
+			camera.position.z = 10;
+			camera.lookAt(0, 0, 0);
+			
+			// Animation loop
+			const clock = new THREE.Clock();
+			
+			// Mouse tracking
+			const mouse = { x: 0.5, y: 0.5 };
+			const targetMouse = { x: 0.5, y: 0.5 };
+			
+			window.addEventListener('mousemove', (e) => {
+				targetMouse.x = e.clientX / window.innerWidth;
+				targetMouse.y = 1.0 - (e.clientY / window.innerHeight);
+			});
+			
+			const animate = () => {
+				const elapsedTime = clock.getElapsedTime();
+				material.uniforms.uTime.value = elapsedTime;
+				
+				// Smooth mouse movement with lerp
+				mouse.x += (targetMouse.x - mouse.x) * 0.05;
+				mouse.y += (targetMouse.y - mouse.y) * 0.05;
+				material.uniforms.uMouse.value.set(mouse.x, mouse.y);
+				
+				renderer.render(scene, camera);
+				requestAnimationFrame(animate);
+			};
+			
+			animate();
+			
+			// Handle resize
+			const handleResize = () => {
+				const aspect = window.innerWidth / window.innerHeight;
+				const frustumSize = 20;
+				
+				camera.left = frustumSize * aspect / -2;
+				camera.right = frustumSize * aspect / 2;
+				camera.top = frustumSize / 2;
+				camera.bottom = frustumSize / -2;
+				camera.updateProjectionMatrix();
+				
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+			};
+			
+			window.addEventListener('resize', handleResize);
+		});
+	};
+
 	// Text scramble effect function
 	function initScrambleEffect(scrambleEl: Element) {
 		const chars = "!<>-_\\/[]{}—=+*^?#________";
@@ -1815,7 +1957,12 @@ const titleWords = title.split(" ");
 			},
 			0,
 		);
-		// Initial state for about and skills section elements (hidden and translated down)
+		// Initial state for flying element and section elements (hidden and translated down)
+		gsap.set(".flying-element", {
+			opacity: 0,
+			scale: 0.5,
+		});
+
 		gsap.set(
 			".about-number, .about-heading, .about-badge, .about-content > *",
 			{
@@ -1842,22 +1989,34 @@ const titleWords = title.split(" ");
 			},
 		});
 
-		// Glide the rotating brutalist star along the SVG dashed bezier curve
-		horizontalTl.to(
-			".flying-element",
-			{
-				motionPath: {
-					path: "#flying-path",
-					align: "#flying-path",
-					autoRotate: false,
-					alignOrigin: [0.5, 0.5],
+		// Glide the rotating brutalist star along the SVG dashed bezier curve with fade in
+		horizontalTl
+			.to(
+				".flying-element",
+				{
+					opacity: 1,
+					scale: 1,
+					duration: 0.5,
+					ease: "power2.out",
 				},
-				rotation: 720,
-				duration: 3.0,
-				ease: "none",
-			},
-			0,
-		);
+				0,
+			)
+			.to(
+				".flying-element",
+				{
+					motionPath: {
+						path: "#flying-path",
+						align: "#flying-path",
+						autoRotate: false,
+						alignOrigin: [0.5, 0.5],
+					},
+					rotation: 720,
+					duration: 3.0,
+					ease: "none",
+				},
+				0,
+			)
+
 
 		// 1. Fade up the about section contents (starts immediately, completes fully before slide)
 		horizontalTl
@@ -1906,8 +2065,12 @@ const titleWords = title.split(" ");
 
 	// Start animation when DOM is fully built
 	if (document.readyState === "loading") {
-		document.addEventListener("DOMContentLoaded", initHeroScroll);
+		document.addEventListener("DOMContentLoaded", () => {
+			initWaveBackground();
+			initHeroScroll();
+		});
 	} else {
+		initWaveBackground();
 		initHeroScroll();
 	}
 
@@ -2003,12 +2166,12 @@ const titleWords = title.split(" ");
 				},
 			});
 
-			// Blur animation - happens much later
+			// Blur animation - happens very early
 			gsap.to(card, {
 				filter: "blur(8px)",
 				scrollTrigger: {
 					trigger: cards[index + 1],
-					start: "top 20vh",
+					start: "top 490vh",
 					end: "top 10vh",
 					scrub: true,
 				},
